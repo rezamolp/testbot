@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 داشبورد آمارگیری ربات تلگرام</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .dashboard-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+            padding: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border-radius: 15px;
+            padding: 25px;
+            color: white;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+        
+        .stat-card.warning {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        }
+        
+        .stat-card.info {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        .section-title {
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        .btn-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+        
+        .table-custom {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        .navbar-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                داشبورد آمارگیری ربات تلگرام
+            </a>
+            <div class="navbar-nav ms-auto">
+                <button class="btn btn-outline-light me-2" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> به‌روزرسانی
+                </button>
+                <button class="btn btn-outline-light" onclick="exportData()">
+                    <i class="fas fa-download"></i> دانلود
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="dashboard-container">
+            
+            <!-- آمار کلی -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h2 class="section-title">
+                        <i class="fas fa-tachometer-alt me-2"></i>
+                        آمار کلی
+                    </h2>
+                </div>
+            </div>
+            
+            <div class="row" id="overview-stats">
+                <div class="col-12">
+                    <div class="loading">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-3">در حال بارگذاری آمار...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- نمودارهای آماری -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-area me-2"></i>
+                        نمودارهای آماری
+                    </h2>
+                </div>
+            </div>
+
+            <!-- نمودار روزانه -->
+            <div class="row mb-4">
+                <div class="col-lg-8">
+                    <div class="chart-container">
+                        <h5><i class="fas fa-calendar-day me-2"></i>آمار روزانه (30 روز اخیر)</h5>
+                        <canvas id="dailyChart" height="100"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="chart-container">
+                        <h5><i class="fas fa-pie-chart me-2"></i>انواع پیام</h5>
+                        <canvas id="messageTypesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ساعات پیک و الگوی هفتگی -->
+            <div class="row mb-4">
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h5><i class="fas fa-clock me-2"></i>ساعات پیک</h5>
+                        <canvas id="peakHoursChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h5><i class="fas fa-calendar-week me-2"></i>الگوی هفتگی</h5>
+                        <canvas id="weeklyPatternChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- جدول آمار کانال‌ها -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h2 class="section-title">
+                        <i class="fas fa-broadcast-tower me-2"></i>
+                        آمار کانال‌ها
+                    </h2>
+                    <div class="chart-container">
+                        <div class="table-responsive">
+                            <table class="table table-custom" id="channelStatsTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>کانال</th>
+                                        <th>کل پیام‌ها</th>
+                                        <th>فوروارد موفق</th>
+                                        <th>فوروارد ناموفق</th>
+                                        <th>نرخ موفقیت</th>
+                                        <th>آخرین فعالیت</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                            در حال بارگذاری...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- گزارشات -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h2 class="section-title">
+                        <i class="fas fa-file-alt me-2"></i>
+                        گزارشات
+                    </h2>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-4 mb-3">
+                    <button class="btn btn-custom w-100" onclick="generateReport('daily')">
+                        <i class="fas fa-calendar-day me-2"></i>گزارش روزانه
+                    </button>
+                </div>
+                <div class="col-lg-4 mb-3">
+                    <button class="btn btn-custom w-100" onclick="generateReport('weekly')">
+                        <i class="fas fa-calendar-week me-2"></i>گزارش هفتگی
+                    </button>
+                </div>
+                <div class="col-lg-4 mb-3">
+                    <button class="btn btn-custom w-100" onclick="generateReport('monthly')">
+                        <i class="fas fa-calendar-alt me-2"></i>گزارش ماهانه
+                    </button>
+                </div>
+            </div>
+
+            <div id="reportContainer" class="mt-4" style="display: none;">
+                <div class="chart-container">
+                    <h5 id="reportTitle"></h5>
+                    <pre id="reportContent" style="white-space: pre-wrap; font-family: 'Courier New', monospace;"></pre>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // متغیرهای سراسری
+        let dailyChart, messageTypesChart, peakHoursChart, weeklyPatternChart;
+
+        // بارگذاری اولیه
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOverviewStats();
+            loadDailyChart();
+            loadMessageTypesChart();
+            loadPeakHoursChart();
+            loadWeeklyPatternChart();
+            loadChannelStats();
+        });
+
+        // بارگذاری آمار کلی
+        async function loadOverviewStats() {
+            try {
+                const response = await fetch('/api/overview');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayOverviewStats(data.data);
+                } else {
+                    showError('خطا در بارگذاری آمار کلی: ' + data.error);
+                }
+            } catch (error) {
+                showError('خطا در اتصال به سرور: ' + error.message);
+            }
+        }
+
+        // نمایش آمار کلی
+        function displayOverviewStats(stats) {
+            const monthly = stats.monthly;
+            const weekly = stats.weekly;
+            const daily = stats.daily;
+
+            const overviewHtml = `
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card">
+                        <div class="stat-number">${(monthly.total_messages || 0).toLocaleString('fa-IR')}</div>
+                        <div class="stat-label"><i class="fas fa-envelope me-2"></i>کل پیام‌ها (ماهانه)</div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card info">
+                        <div class="stat-number">${monthly.success_rate || 0}%</div>
+                        <div class="stat-label"><i class="fas fa-check-circle me-2"></i>نرخ موفقیت</div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card warning">
+                        <div class="stat-number">${(daily.total_messages || 0).toLocaleString('fa-IR')}</div>
+                        <div class="stat-label"><i class="fas fa-calendar-day me-2"></i>پیام‌های امروز</div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-card ${monthly.trend_percentage >= 0 ? '' : 'danger'}">
+                        <div class="stat-number">${monthly.trend_percentage || 0}%</div>
+                        <div class="stat-label">
+                            <i class="fas fa-trending-${monthly.trend_percentage >= 0 ? 'up' : 'down'} me-2"></i>
+                            روند ماهانه
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('overview-stats').innerHTML = overviewHtml;
+        }
+
+        // بارگذاری نمودار روزانه
+        async function loadDailyChart() {
+            try {
+                const response = await fetch('/api/daily-stats?days=30');
+                const data = await response.json();
+                
+                if (data.success) {
+                    createDailyChart(data.data);
+                }
+            } catch (error) {
+                console.error('خطا در بارگذاری نمودار روزانه:', error);
+            }
+        }
+
+        // ایجاد نمودار روزانه
+        function createDailyChart(data) {
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            
+            if (dailyChart) {
+                dailyChart.destroy();
+            }
+
+            dailyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates.map(date => new Date(date).toLocaleDateString('fa-IR')),
+                    datasets: [{
+                        label: 'تعداد پیام‌ها',
+                        data: data.total_messages,
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'نرخ موفقیت (%)',
+                        data: data.success_rates,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'تعداد پیام‌ها'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'نرخ موفقیت (%)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        }
+
+        // بارگذاری نمودار انواع پیام
+        async function loadMessageTypesChart() {
+            try {
+                const response = await fetch('/api/message-types?days=30');
+                const data = await response.json();
+                
+                if (data.success && data.data.labels.length > 0) {
+                    createMessageTypesChart(data.data);
+                }
+            } catch (error) {
+                console.error('خطا در بارگذاری نمودار انواع پیام:', error);
+            }
+        }
+
+        // ایجاد نمودار انواع پیام
+        function createMessageTypesChart(data) {
+            const ctx = document.getElementById('messageTypesChart').getContext('2d');
+            
+            if (messageTypesChart) {
+                messageTypesChart.destroy();
+            }
+
+            messageTypesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.values,
+                        backgroundColor: [
+                            '#4CAF50', '#2196F3', '#FF9800', '#9C27B0',
+                            '#F44336', '#00BCD4', '#8BC34A', '#795548'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // بارگذاری نمودار ساعات پیک
+        async function loadPeakHoursChart() {
+            try {
+                const response = await fetch('/api/peak-hours?days=30');
+                const data = await response.json();
+                
+                if (data.success) {
+                    createPeakHoursChart(data.data);
+                }
+            } catch (error) {
+                console.error('خطا در بارگذاری نمودار ساعات پیک:', error);
+            }
+        }
+
+        // ایجاد نمودار ساعات پیک
+        function createPeakHoursChart(data) {
+            const ctx = document.getElementById('peakHoursChart').getContext('2d');
+            
+            if (peakHoursChart) {
+                peakHoursChart.destroy();
+            }
+
+            peakHoursChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.hours.map(h => h + ':00'),
+                    datasets: [{
+                        label: 'تعداد پیام‌ها',
+                        data: data.counts,
+                        backgroundColor: data.hours.map(h => 
+                            h === data.peak_hour ? '#4CAF50' : 'rgba(76, 175, 80, 0.5)'
+                        )
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // بارگذاری الگوی هفتگی
+        async function loadWeeklyPatternChart() {
+            try {
+                const response = await fetch('/api/weekly-pattern?days=30');
+                const data = await response.json();
+                
+                if (data.success) {
+                    createWeeklyPatternChart(data.data);
+                }
+            } catch (error) {
+                console.error('خطا در بارگذاری الگوی هفتگی:', error);
+            }
+        }
+
+        // ایجاد نمودار الگوی هفتگی
+        function createWeeklyPatternChart(data) {
+            const ctx = document.getElementById('weeklyPatternChart').getContext('2d');
+            
+            if (weeklyPatternChart) {
+                weeklyPatternChart.destroy();
+            }
+
+            const days = Object.keys(data.distribution);
+            const counts = Object.values(data.distribution);
+
+            weeklyPatternChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'تعداد پیام‌ها',
+                        data: counts,
+                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                        borderColor: '#4CAF50',
+                        pointBackgroundColor: '#4CAF50'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // بارگذاری آمار کانال‌ها
+        async function loadChannelStats() {
+            try {
+                const response = await fetch('/api/channel-stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayChannelStats(data.data);
+                }
+            } catch (error) {
+                console.error('خطا در بارگذاری آمار کانال‌ها:', error);
+            }
+        }
+
+        // نمایش آمار کانال‌ها
+        function displayChannelStats(channels) {
+            const tbody = document.querySelector('#channelStatsTable tbody');
+            
+            if (channels.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">هیچ داده‌ای یافت نشد</td></tr>';
+                return;
+            }
+
+            let html = '';
+            channels.forEach(channel => {
+                const successRate = channel.total_messages > 0 ? 
+                    ((channel.successful_forwards / channel.total_messages) * 100).toFixed(1) : 0;
+                
+                const lastActivity = new Date(channel.last_activity).toLocaleDateString('fa-IR');
+                
+                html += `
+                    <tr>
+                        <td>${channel.channel_id}</td>
+                        <td>${channel.total_messages.toLocaleString('fa-IR')}</td>
+                        <td>${channel.successful_forwards.toLocaleString('fa-IR')}</td>
+                        <td>${channel.failed_forwards.toLocaleString('fa-IR')}</td>
+                        <td><span class="badge bg-${successRate >= 90 ? 'success' : successRate >= 70 ? 'warning' : 'danger'}">${successRate}%</span></td>
+                        <td>${lastActivity}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        // تولید گزارش
+        async function generateReport(type) {
+            try {
+                const response = await fetch(`/api/reports/${type}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('reportTitle').textContent = `گزارش ${type === 'daily' ? 'روزانه' : type === 'weekly' ? 'هفتگی' : 'ماهانه'}`;
+                    document.getElementById('reportContent').textContent = data.data.report;
+                    document.getElementById('reportContainer').style.display = 'block';
+                    
+                    // اسکرول به قسمت گزارش
+                    document.getElementById('reportContainer').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showError('خطا در تولید گزارش: ' + data.error);
+                }
+            } catch (error) {
+                showError('خطا در تولید گزارش: ' + error.message);
+            }
+        }
+
+        // به‌روزرسانی تمام داده‌ها
+        function refreshData() {
+            location.reload();
+        }
+
+        // دانلود داده‌ها
+        function exportData() {
+            const link = document.createElement('a');
+            link.href = '/api/export/json?days=30';
+            link.download = `telegram_bot_stats_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // نمایش خطا
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
+            
+            document.querySelector('.dashboard-container').insertBefore(
+                errorDiv, 
+                document.querySelector('.dashboard-container').firstChild
+            );
+            
+            // حذف خطا بعد از 5 ثانیه
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

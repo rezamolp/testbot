@@ -10,10 +10,13 @@ Telegram Auto-Forward Bot
 import asyncio
 import logging
 import os
+import time
 from typing import Optional, Union
 from telethon import TelegramClient, events
 from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument
 from dotenv import load_dotenv
+from datetime import datetime
+from statistics import StatisticsDB, StatisticsAnalyzer, StatisticsReporter, MessageStats
 
 # بارگذاری تنظیمات از فایل .env
 load_dotenv()
@@ -49,9 +52,15 @@ class TelegramAutoForward:
         # ایجاد کلاینت تلگرام
         self.client = TelegramClient('auto_forward_session', self.api_id, self.api_hash)
         
+        # مقداردهی سیستم آمارگیری
+        self.stats_db = StatisticsDB()
+        self.stats_analyzer = StatisticsAnalyzer(self.stats_db)
+        self.stats_reporter = StatisticsReporter(self.stats_db, self.stats_analyzer)
+        
         logger.info("ربات اتوفوروارد مقداردهی شد")
         logger.info(f"کانال مبدا: {self.source_channel}")
         logger.info(f"کانال مقصد: {self.destination_channel}")
+        logger.info("سیستم آمارگیری فعال شد")
 
     async def start(self):
         """شروع ربات"""
@@ -98,6 +107,10 @@ class TelegramAutoForward:
 
     async def _handle_new_message(self, event):
         """پردازش پیام جدید و فوروارد آن"""
+        start_time = time.time()
+        success = False
+        error_message = None
+        
         try:
             message = event.message
             
@@ -109,12 +122,16 @@ class TelegramAutoForward:
                 await asyncio.sleep(self.forward_delay)
             
             # فوروارد پیام
-            await self._forward_message(message)
+            success = await self._forward_message(message)
             
         except Exception as e:
+            error_message = str(e)
             logger.error(f"خطا در پردازش پیام: {e}")
+        finally:
+            # ثبت آمار
+            await self._record_message_stats(event.message, start_time, success, error_message)
 
-    async def _forward_message(self, message: Message):
+    async def _forward_message(self, message: Message) -> bool:
         """فوروارد پیام به کانال مقصد"""
         try:
             # فوروارد پیام
@@ -130,8 +147,11 @@ class TelegramAutoForward:
                 text_preview = message.text[:50] + "..." if len(message.text) > 50 else message.text
                 logger.info(f"متن پیام: {text_preview}")
             
+            return True
+            
         except Exception as e:
             logger.error(f"خطا در فوروارد پیام: {e}")
+            return False
 
     def _get_message_type(self, message: Message) -> str:
         """تشخیص نوع پیام"""
@@ -181,6 +201,73 @@ class TelegramAutoForward:
             
         except Exception as e:
             logger.error(f"خطا در تست فوروارد: {e}")
+
+    async def _record_message_stats(self, message: Message, start_time: float, success: bool, error_message: Optional[str] = None):
+        """ثبت آمار پیام"""
+        try:
+            # محاسبه زمان پردازش
+            processing_time = time.time() - start_time
+            
+            # تشخیص نوع رسانه
+            has_media = bool(message.media)
+            media_type = None
+            if has_media:
+                if message.photo:
+                    media_type = "photo"
+                elif message.video:
+                    media_type = "video"
+                elif message.document:
+                    media_type = "document"
+                elif message.audio:
+                    media_type = "audio"
+                elif message.voice:
+                    media_type = "voice"
+                elif message.sticker:
+                    media_type = "sticker"
+                else:
+                    media_type = "other"
+            
+            # محاسبه اندازه پیام
+            message_size = 0
+            if message.text:
+                message_size = len(message.text.encode('utf-8'))
+            if message.media and hasattr(message.media, 'document') and message.media.document:
+                message_size += getattr(message.media.document, 'size', 0)
+            
+            # ایجاد آبجکت آمار
+            stat = MessageStats(
+                id=message.id,
+                message_type=self._get_message_type(message),
+                source_channel=self.source_channel,
+                destination_channel=self.destination_channel,
+                timestamp=datetime.now(),
+                forward_delay=processing_time,
+                success=success,
+                error_message=error_message,
+                message_size=message_size,
+                has_media=has_media,
+                media_type=media_type
+            )
+            
+            # ثبت در پایگاه داده
+            self.stats_db.add_message_stat(stat)
+            
+            logger.debug(f"آمار پیام {message.id} ثبت شد - موفقیت: {success}")
+            
+        except Exception as e:
+            logger.error(f"خطا در ثبت آمار: {e}")
+
+    async def get_daily_report(self) -> str:
+        """دریافت گزارش روزانه"""
+        return self.stats_reporter.generate_daily_report()
+    
+    async def get_weekly_report(self) -> str:
+        """دریافت گزارش هفتگی"""
+        return self.stats_reporter.generate_weekly_report()
+    
+    async def get_monthly_report(self) -> str:
+        """دریافت گزارش ماهانه"""
+        return self.stats_reporter.generate_monthly_report()
 
 
 async def main():
